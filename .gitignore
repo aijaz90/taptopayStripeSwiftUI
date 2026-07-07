@@ -1,0 +1,14 @@
+# CocoaPods
+Pods/
+
+# Xcode
+DerivedData/
+build/
+
+# User settings
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcuserstate
+
+# macOS
+.DS_Store
