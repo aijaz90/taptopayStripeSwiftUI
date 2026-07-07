@@ -18,5 +18,6 @@ enum APIConfig {
         static let createPaymentIntent = "create_payment_intent"
         static let capturePayment = "capture_payment"
         static let receipt = "receipt"
+        static let terminalLocation = "terminal_location"
     }
 }

@@ -20,11 +20,14 @@ import StripeTerminal
 
 final class StripeConnectionTokenProvider: NSObject, ConnectionTokenProvider {
     func fetchConnectionToken(_ completion: @escaping ConnectionTokenCompletionBlock) {
+        print("🔌 [StripeTerminal] fetchConnectionToken called by SDK…")
         Task {
             do {
                 let token = try await APIClient.shared.fetchConnectionToken()
+                print("✅ [StripeTerminal] connection token delivered to SDK.")
                 completion(token.secret, nil)
             } catch {
+                print("❌ [StripeTerminal] connection token failed: \(error.localizedDescription)")
                 completion(nil, error)
             }
         }

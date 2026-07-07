@@ -30,27 +30,80 @@ final class APIClient {
         body: [String: Any] = [:],
         as type: T.Type
     ) async throws -> T {
-        var request = URLRequest(url: APIConfig.baseURL.appendingPathComponent(path))
+        let url = APIConfig.baseURL.appendingPathComponent(path)
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
+        let bodyData = try JSONSerialization.data(withJSONObject: body, options: [])
+        request.httpBody = bodyData
 
-        let (data, response) = try await session.data(for: request)
+        print("🌐 [API] POST \(url.absoluteString)")
+        print("🌐 [API] Request body: \(String(data: bodyData, encoding: .utf8) ?? "{}")")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            // Network-level failure (server down, wrong IP, no Wi-Fi, ATS blocked).
+            print("❌ [API] Network error for \(path): \(error.localizedDescription)")
+            throw APIError(message: "Network error: \(error.localizedDescription)")
+        }
 
         guard let http = response as? HTTPURLResponse else {
+            print("❌ [API] Non-HTTP response for \(path)")
             throw APIError(message: "Invalid server response.")
         }
+
+        print("🌐 [API] Response \(http.statusCode) for \(path): \(String(data: data, encoding: .utf8) ?? "<non-utf8>")")
 
         // Read success / message first so failures (e.g. declined card,
         // 400/402/404) surface a clean message instead of a decode error.
         let status = try decoder.decode(APIStatus.self, from: data)
         guard status.success else {
+            print("❌ [API] Server reported failure for \(path): \(status.message)")
             throw APIError(message: status.message)
         }
 
         guard (200...299).contains(http.statusCode) else {
+            print("❌ [API] Non-2xx status \(http.statusCode) for \(path): \(status.message)")
             throw APIError(message: status.message)
         }
+
+        let wrapper = try decoder.decode(APIResponse<T>.self, from: data)
+        guard let payload = wrapper.data else {
+            print("❌ [API] Missing data field for \(path)")
+            throw APIError(message: "Missing data in server response.")
+        }
+        print("✅ [API] Decoded \(T.self) for \(path)")
+        return payload
+    }
+
+    /// Sends a GET request and decodes `data` as `T`.
+    func get<T: Decodable>(path: String, as type: T.Type) async throws -> T {
+        let url = APIConfig.baseURL.appendingPathComponent(path)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        print("🌐 [API] GET \(url.absoluteString)")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            print("❌ [API] Network error for \(path): \(error.localizedDescription)")
+            throw APIError(message: "Network error: \(error.localizedDescription)")
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError(message: "Invalid server response.")
+        }
+        print("🌐 [API] Response \(http.statusCode) for \(path): \(String(data: data, encoding: .utf8) ?? "<non-utf8>")")
+
+        let status = try decoder.decode(APIStatus.self, from: data)
+        guard status.success else { throw APIError(message: status.message) }
+        guard (200...299).contains(http.statusCode) else { throw APIError(message: status.message) }
 
         let wrapper = try decoder.decode(APIResponse<T>.self, from: data)
         guard let payload = wrapper.data else {
@@ -64,6 +117,11 @@ final class APIClient {
     /// POST /connection_token — used to bootstrap Stripe Terminal / Tap to Pay.
     func fetchConnectionToken() async throws -> ConnectionTokenData {
         try await post(path: APIConfig.Path.connectionToken, as: ConnectionTokenData.self)
+    }
+
+    /// GET /terminal_location — location id used to connect the Tap to Pay reader.
+    func fetchLocation() async throws -> LocationData {
+        try await get(path: APIConfig.Path.terminalLocation, as: LocationData.self)
     }
 
     /// POST /create_payment_intent — amount is in the smallest unit (cents).

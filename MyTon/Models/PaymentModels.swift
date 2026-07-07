@@ -40,6 +40,15 @@ struct PaymentIntentData: Decodable {
     }
 }
 
+/// Data returned by GET /terminal_location
+struct LocationData: Decodable {
+    let locationId: String
+
+    enum CodingKeys: String, CodingKey {
+        case locationId = "location_id"
+    }
+}
+
 /// Data returned by POST /capture_payment and POST /receipt
 struct ReceiptData: Decodable, Identifiable {
     var id: String { receiptId }

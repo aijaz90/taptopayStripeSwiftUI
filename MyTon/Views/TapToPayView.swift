@@ -9,6 +9,7 @@ import SwiftUI
 
 struct TapToPayView: View {
     @StateObject private var viewModel = TapToPayViewModel()
+    @ObservedObject private var terminal = TerminalManager.shared
 
     var body: some View {
         NavigationStack {
@@ -25,13 +26,17 @@ struct TapToPayView: View {
 
                     payButton
 
-                    Toggle("Simulate a declined card", isOn: $viewModel.simulateFailure)
-                        .font(.footnote)
-                        .padding(.horizontal)
+                    settingsCard
 
                     Text(viewModel.statusMessage)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+
+                    if viewModel.useRealTerminal {
+                        Text(terminal.readerStatus)
+                            .font(.caption)
+                            .foregroundStyle(.tint)
+                    }
                 }
                 .padding()
             }
@@ -99,6 +104,29 @@ struct TapToPayView: View {
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
         .disabled(viewModel.isProcessing)
+    }
+
+    private var settingsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle("Use real Stripe Terminal", isOn: $viewModel.useRealTerminal)
+            if viewModel.useRealTerminal {
+                Toggle("Simulated reader (test without a real card)", isOn: $viewModel.useSimulatedReader)
+                Text(viewModel.useSimulatedReader
+                     ? "Uses Stripe's simulated reader — full real flow, no entitlement or physical card needed."
+                     : "Real Tap to Pay: needs the entitlement + a physical iPhone. Waits for an actual card tap.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                Toggle("Simulate a declined card", isOn: $viewModel.simulateFailure)
+                Text("Mock flow — no card is read; the receipt is fake test data.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.footnote)
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func errorBanner(_ message: String) -> some View {
